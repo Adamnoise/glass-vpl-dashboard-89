@@ -1,3 +1,4 @@
+
 import { CodeMetrics, CodeFile } from '@/types/code-generation';
 
 export class MetricsCalculator {
@@ -27,6 +28,10 @@ export class MetricsCalculator {
       complexity,
       maintainabilityIndex: componentFile ? this.calculateMaintainabilityIndex(componentFile.content) : 80,
       duplicateLines: componentFile ? this.findDuplicateLines(componentFile.content) : 0,
+      testCoverage: 0, // Default value
+      bundleSize: totalSize, // Use totalSize as bundleSize for now
+      loadTime: 0, // Default value
+      performanceScore: 85, // Default good score
       generationTime: Date.now() - startTime
     };
   }

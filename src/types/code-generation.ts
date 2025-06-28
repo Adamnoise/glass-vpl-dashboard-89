@@ -1,3 +1,4 @@
+
 export interface CodeGenerationConfig {
   framework: 'react' | 'vue' | 'angular' | 'svelte' | 'html';
   typescript: boolean;
@@ -86,6 +87,7 @@ export interface ProjectStructure {
 export interface CodeMetrics {
   linesOfCode: number;
   componentCount: number;
+  totalSize: number;
   complexity: number;
   maintainabilityIndex: number;
   duplicateLines: number;
