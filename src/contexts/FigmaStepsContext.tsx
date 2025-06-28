@@ -221,79 +221,7 @@ export const FigmaStepsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     dispatch({ type: 'RESET_ALL' });
   }, []);
 
-  // Business Logic Actions
-  const connectToFigma = useCallback(async () => {
-    const { figmaUrl, accessToken } = state.stepData;
-    
-    if (!figmaUrl.trim() || !accessToken.trim()) {
-      setError('step1', 'Please provide both Figma URL and Access Token');
-      return;
-    }
-
-    setStepStatus({ step1: 'loading' });
-    clearErrors();
-    setProgress({ current: 1, message: 'Connecting to Figma...' });
-
-    try {
-      // Validate URL
-      const validation = await figmaApiService.validateFigmaUrl(figmaUrl);
-      if (!validation.valid || !validation.fileId) {
-        throw new Error(validation.error || 'Invalid Figma URL');
-      }
-
-      setProgress({ message: 'Fetching Figma file data...' });
-
-      // Fetch complete Figma file data
-      const figmaFile = await figmaApiService.fetchFigmaFile(validation.fileId, accessToken);
-      
-      setProgress({ message: 'Getting metadata...' });
-      
-      // Get additional metadata
-      const metadata = await figmaApiService.getFileMetadata(validation.fileId, accessToken);
-      const components = await figmaApiService.getFileComponents(validation.fileId, accessToken);
-      const styles = await figmaApiService.getFileStyles(validation.fileId, accessToken);
-
-      const completeData = {
-        file: figmaFile,
-        metadata,
-        components,
-        styles,
-        fileId: validation.fileId,
-        extractedAt: new Date().toISOString()
-      };
-
-      setStepData({ figmaData: completeData });
-      setStepStatus({ step1: 'success' });
-      setProgress({ message: 'Connection successful!' });
-      
-      // Auto-trigger Step 2
-      await autoGenerateSvg(completeData, validation.fileId);
-
-    } catch (error) {
-      console.error('Connection error:', error);
-      let errorMessage = 'Connection failed';
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-        
-        // Provide more helpful error messages
-        if (error.message.includes('Access denied') || error.message.includes('403')) {
-          errorMessage = 'Access denied. This Figma file requires authentication. Please provide a valid Figma Personal Access Token. You can generate one from your Figma account settings under "Personal access tokens".';
-        } else if (error.message.includes('404')) {
-          errorMessage = 'Figma file not found. Please check if the file exists and the URL is correct.';
-        } else if (error.message.includes('401')) {
-          errorMessage = 'Invalid or expired access token. Please check your Figma Personal Access Token and try again.';
-        } else if (error.message.includes('429')) {
-          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
-        }
-      }
-      
-      setError('step1', errorMessage);
-      setStepStatus({ step1: 'error' });
-      setProgress({ message: 'Connection failed' });
-    }
-  }, [state.stepData, setStepData, setStepStatus, setError, clearErrors, setProgress]);
-
+  // Auto-generate SVG function (fixed dependencies)
   const autoGenerateSvg = useCallback(async (figmaData: any, fileId: string) => {
     setStepStatus({ step2: 'loading' });
     setProgress({ current: 2, message: 'Extracting SVG from Figma...' });
@@ -303,10 +231,8 @@ export const FigmaStepsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const svgContent = await enhancedCodeGenerationEngine.extractSVGFromFigma(figmaData.file);
       
       setStepData({ svgCode: svgContent });
-      setProgress({ message: 'Converting SVG to TSX...' });
-      
-      // Auto-trigger SVG to TSX conversion
-      await generateSvgCode(svgContent);
+      setProgress({ message: 'SVG extracted successfully!' });
+      setStepStatus({ step2: 'success' });
 
     } catch (error) {
       console.error('SVG generation error:', error);
@@ -316,6 +242,7 @@ export const FigmaStepsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [setStepData, setStepStatus, setError, setProgress]);
 
+  // Generate SVG code function (fixed dependencies)
   const generateSvgCode = useCallback(async (svgContent?: string) => {
     const svg = svgContent || state.stepData.svgCode;
     
@@ -372,6 +299,80 @@ export const FigmaStepsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setProgress({ message: 'SVG conversion failed' });
     }
   }, [state.stepData.svgCode, setStepData, setStepStatus, setError, clearErrors, setProgress]);
+
+  // Connect to Figma function (fixed - removed auto-trigger)  
+  const connectToFigma = useCallback(async () => {
+    const { figmaUrl, accessToken } = state.stepData;
+    
+    if (!figmaUrl.trim() || !accessToken.trim()) {
+      setError('step1', 'Please provide both Figma URL and Access Token');
+      return;
+    }
+
+    setStepStatus({ step1: 'loading' });
+    clearErrors();
+    setProgress({ current: 1, message: 'Connecting to Figma...' });
+
+    try {
+      // Validate URL
+      const validation = await figmaApiService.validateFigmaUrl(figmaUrl);
+      if (!validation.valid || !validation.fileId) {
+        throw new Error(validation.error || 'Invalid Figma URL');
+      }
+
+      setProgress({ message: 'Fetching Figma file data...' });
+
+      // Fetch complete Figma file data
+      const figmaFile = await figmaApiService.fetchFigmaFile(validation.fileId, accessToken);
+      
+      setProgress({ message: 'Getting metadata...' });
+      
+      // Get additional metadata
+      const metadata = await figmaApiService.getFileMetadata(validation.fileId, accessToken);
+      const components = await figmaApiService.getFileComponents(validation.fileId, accessToken);
+      const styles = await figmaApiService.getFileStyles(validation.fileId, accessToken);
+
+      const completeData = {
+        file: figmaFile,
+        metadata,
+        components,
+        styles,
+        fileId: validation.fileId,
+        extractedAt: new Date().toISOString()
+      };
+
+      // Batch state updates to reduce re-renders
+      setStepData({ figmaData: completeData });
+      setStepStatus({ step1: 'success' });
+      setProgress({ message: 'Connection successful!' });
+
+      // Trigger Step 2 automatically after successful connection
+      await autoGenerateSvg(completeData, validation.fileId);
+
+    } catch (error) {
+      console.error('Connection error:', error);
+      let errorMessage = 'Connection failed';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Provide more helpful error messages
+        if (error.message.includes('Access denied') || error.message.includes('403')) {
+          errorMessage = 'Access denied. This Figma file requires authentication. Please provide a valid Figma Personal Access Token. You can generate one from your Figma account settings under "Personal access tokens".';
+        } else if (error.message.includes('404')) {
+          errorMessage = 'Figma file not found. Please check if the file exists and the URL is correct.';
+        } else if (error.message.includes('401')) {
+          errorMessage = 'Invalid or expired access token. Please check your Figma Personal Access Token and try again.';
+        } else if (error.message.includes('429')) {
+          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        }
+      }
+      
+      setError('step1', errorMessage);
+      setStepStatus({ step1: 'error' });
+      setProgress({ message: 'Connection failed' });
+    }
+  }, [state.stepData, setStepData, setStepStatus, setError, clearErrors, setProgress, autoGenerateSvg]);
 
   const saveCssCode = useCallback(() => {
     if (!state.stepData.cssCode.trim()) {

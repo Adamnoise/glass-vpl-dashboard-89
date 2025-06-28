@@ -23,19 +23,32 @@ import { useFigmaSteps } from '@/contexts/FigmaStepsContext';
 import { getStatusIcon } from '../utils/statusUtils';
 import { errorHandler } from '../utils/errorHandler';
 
-// Enhanced debounce with immediate execution option
+// Enhanced debounce with cleanup
 function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number,
   immediate = false
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
+): [(...args: Parameters<T>) => void, () => void] {
+  let timeout: NodeJS.Timeout | null = null;
+  
+  const debounced = (...args: Parameters<T>) => {
     const callNow = immediate && !timeout;
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      timeout = null;
+      func(...args);
+    }, wait);
     if (callNow) func(...args);
   };
+  
+  const cleanup = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+  
+  return [debounced, cleanup];
 }
 
 interface FormState {
@@ -150,22 +163,25 @@ export const Step1Configuration: React.FC = () => {
     return { valid: true };
   }, []);
 
-  // Debounced validation with enhanced feedback
-  const validateInputs = useMemo(
-    () =>
-      debounce((url: string, token: string) => {
-        const urlValidation = validateFigmaUrl(url);
-        const tokenValidation = validateAccessToken(token);
+  // Fixed debounced validation with proper dependencies and cleanup
+  const [validateInputs, cleanupValidation] = useMemo(() => {
+    return debounce((url: string, token: string) => {
+      const urlValidation = validateFigmaUrl(url);
+      const tokenValidation = validateAccessToken(token);
 
-        setValidationState({
-          isFigmaUrlValid: urlValidation.valid,
-          isAccessTokenValid: tokenValidation.valid,
-          urlValidationMessage: urlValidation.message,
-          tokenValidationMessage: tokenValidation.message,
-        });
-      }, 300),
-    [validateFigmaUrl, validateAccessToken]
-  );
+      setValidationState({
+        isFigmaUrlValid: urlValidation.valid,
+        isAccessTokenValid: tokenValidation.valid,
+        urlValidationMessage: urlValidation.message,
+        tokenValidationMessage: tokenValidation.message,
+      });
+    }, 300);
+  }, [validateFigmaUrl, validateAccessToken]);
+
+  // Cleanup debounced function on unmount
+  useEffect(() => {
+    return cleanupValidation;
+  }, [cleanupValidation]);
 
   // Enhanced input change handler
   const handleInputChange = useCallback(
@@ -549,7 +565,54 @@ export const Step1Configuration: React.FC = () => {
         </Button>
 
         {/* Success Display */}
-        {figmaDataDisplay}
+        {isSuccess && stepData.figmaData && (
+          <div className="mt-4 transition-all duration-300 ease-in-out">
+            <div className="flex items-center justify-between p-3 bg-green-900/20 border border-green-600 rounded-lg mb-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-400" />
+                <span className="text-green-400 font-medium">Successfully Connected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {connectionStatus.responseTime && (
+                  <Badge variant="outline" className="text-xs">
+                    <Clock className="w-3 h-3 mr-1" />
+                    {connectionStatus.responseTime}ms
+                  </Badge>
+                )}
+                {connectionStatus.connectionQuality && (
+                  <Badge variant="outline" className={`text-xs ${
+                    connectionStatus.connectionQuality === 'excellent' ? 'text-green-400' :
+                    connectionStatus.connectionQuality === 'good' ? 'text-yellow-400' : 'text-red-400'
+                  }`}>
+                    <Globe className="w-3 h-3 mr-1" />
+                    {connectionStatus.connectionQuality}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="p-3 bg-gray-700 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Database className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs text-gray-400">Components</span>
+                </div>
+                <div className="text-lg font-bold text-white">
+                  {stepData.figmaData.metadata?.componentCount || 0}
+                </div>
+              </div>
+              <div className="p-3 bg-gray-700 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Shield className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs text-gray-400">Styles</span>
+                </div>
+                <div className="text-lg font-bold text-white">
+                  {stepData.figmaData.metadata?.styleCount || 0}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
