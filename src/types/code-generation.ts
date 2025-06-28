@@ -85,6 +85,7 @@ export interface ProjectStructure {
 
 export interface CodeMetrics {
   linesOfCode: number;
+  componentCount: number;
   complexity: number;
   maintainabilityIndex: number;
   duplicateLines: number;
@@ -92,6 +93,7 @@ export interface CodeMetrics {
   bundleSize: number;
   loadTime: number;
   performanceScore: number;
+  generationTime: number;
 }
 
 export interface BuildLog {
